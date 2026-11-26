@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test set: locate farmer speech</title>
+<style>
+  :root {
+    --bg: #fafaf9; --panel: #ffffff; --ink: #1c1917; --muted: #78716c; --line: #e7e5e4;
+    --accent: #0f766e; --accent-soft: #ccfbf1; --wave: #a8a29e; --sel: rgba(15,118,110,.18);
+    --guess: rgba(217,119,6,.16); --bot: #f5f5f4; --farmer: #ecfdf5; --warn: #b45309; --bad: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --panel: #292524; --ink: #f5f5f4; --muted: #a8a29e; --line: #44403c;
+      --accent: #2dd4bf; --accent-soft: #134e4a; --wave: #78716c; --sel: rgba(45,212,191,.2);
+      --guess: rgba(251,191,36,.16); --bot: #1f1d1b; --farmer: #12302b; --warn: #fbbf24; --bad: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", "Noto Sans Devanagari", sans-serif;
+         background: var(--bg); color: var(--ink); display: grid; grid-template-columns: 290px 1fr; height: 100vh; }
+  aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+  aside header { padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
+  aside h1 { font-size: 15px; margin: 0 0 6px; }
+  .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 8px 0 4px; }
+  .progress > div { height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  .small { font-size: 12.5px; color: var(--muted); }
+  aside select, aside input { width: 100%; margin-top: 8px; padding: 6px 8px; border: 1px solid var(--line);
+         border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
+  #list { overflow-y: auto; flex: 1; }
+  #list button { display: flex; gap: 8px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line);
+         background: none; color: inherit; padding: 7px 14px; cursor: pointer; font: inherit; font-size: 13px; align-items: baseline; }
+  #list button:hover { background: var(--bg); }
+  #list button.cur { background: var(--accent-soft); }
+  #list .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line); transform: translateY(-1px); }
+  #list .dot.farmer { background: var(--accent); } #list .dot.not_in_recording, #list .dot.bot_only { background: var(--muted); }
+  #list .dot.unsure { background: var(--warn); }
+  #list .txt { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  main { overflow-y: auto; padding: 20px 28px 40px; min-width: 0; }
+  .meta { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .target { font-size: 22px; margin: 10px 0 4px; }
+  .ctx { margin: 14px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .ctx div { padding: 6px 12px; font-size: 14px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 62px 1fr; gap: 8px; }
+  .ctx div:last-child { border-bottom: 0; }
+  .ctx .bot { background: var(--bot); } .ctx .farmer { background: var(--farmer); }
+  .ctx .this { outline: 2px solid var(--accent); outline-offset: -2px; font-weight: 600; }
+  .ctx .who { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding-top: 2px; }
+  .wavebox { position: relative; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-top: 6px; user-select: none; }
+  canvas { display: block; width: 100%; height: 150px; cursor: crosshair; }
+  .axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); padding: 2px 6px 6px; font-variant-numeric: tabular-nums; }
+  .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  button.b { border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 7px 12px; border-radius: 7px;
+             cursor: pointer; font: inherit; font-size: 14px; }
+  button.b:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; margin-left: 4px; color: var(--muted); }
+  .sel { font-variant-numeric: tabular-nums; font-size: 14px; }
+  .guess { margin-top: 10px; font-size: 13.5px; padding: 8px 12px; border-left: 3px solid var(--warn); background: var(--guess); border-radius: 0 6px 6px 0; }
+  textarea { width: 100%; margin-top: 12px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+             background: var(--panel); color: var(--ink); font: inherit; font-size: 14px; }
+  .saved { margin-top: 10px; font-size: 13px; color: var(--accent); min-height: 1.2em; }
+  .saved.err { color: var(--bad); }
+  .help { margin-top: 22px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+  .help li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>Locate farmer speech</h1>
+    <div class="small"><span id="count">0</span> of <span id="total">0</span> decided</div>
+    <div class="progress"><div id="bar"></div></div>
+    <select id="filter">
+      <option value="all">All items</option>
+      <option value="todo" selected>Not decided yet</option>
+      <option value="farmer">Farmer speech found</option>
+      <option value="not_in_recording">Not in recording</option>
+      <option value="bot_only">Bot only</option>
+      <option value="unsure">Unsure</option>
+    </select>
+    <input id="reviewer" placeholder="Your name (saved with each decision)">
+  </header>
+  <div id="list"></div>
+</aside>
+<main id="main"><p class="small">Loading…</p></main>
+
+<script>
+const S = { items: [], fixes: {}, i: 0, buf: null, ctx: null, src: null, playStart: 0, playFrom: 0,
+            sel: null, drag: null, raf: 0, peaks: null };
+const $ = id => document.getElementById(id);
+const fmt = t => (t == null || isNaN(t)) ? "–" : t.toFixed(2) + " s";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const LABEL = { farmer: "Farmer speech found", not_in_recording: "Not in recording", bot_only: "Bot only", unsure: "Unsure" };
+
+async function init() {
+  S.items = await (await fetch("items.json")).json();
+  S.fixes = await (await fetch("/api/fixes")).json();
+  $("reviewer").value = localStorage.getItem("reviewer") || "";
+  $("reviewer").onchange = e => localStorage.setItem("reviewer", e.target.value.trim());
+  $("filter").onchange = renderList;
+  const firstTodo = S.items.findIndex(x => !S.fixes[x.utt_id]);
+  renderList();
+  open(firstTodo < 0 ? 0 : firstTodo);
+}
+
+function visible() {
+  const f = $("filter").value;
+  return S.items.map((x, i) => [x, i]).filter(([x]) => {
+    const d = S.fixes[x.utt_id]?.decision;
+    return f === "all" || (f === "todo" ? !d : d === f);
+  });
+}
+
+function renderList() {
+  const n = Object.keys(S.fixes).filter(k => S.items.some(x => x.utt_id === k)).length;
+  $("count").textContent = n; $("total").textContent = S.items.length;
+  $("bar").style.width = (100 * n / Math.max(1, S.items.length)) + "%";
+  $("list").innerHTML = visible().map(([x, i]) =>
+    `<button data-i="${i}" class="${i === S.i ? "cur" : ""}"><span class="dot ${S.fixes[x.utt_id]?.decision || ""}"></span>` +
+    `<span class="txt">${esc(x.log_text)}</span></button>`).join("") || `<p class="small" style="padding:14px">Nothing here.</p>`;
+  $("list").querySelectorAll("button").forEach(b => b.onclick = () => open(+b.dataset.i));
+}
+
+async function open(i) {
+  stop();
+  S.i = i; const x = S.items[i]; const fx = S.fixes[x.utt_id];
+  if (fx?.decision === "farmer") S.sel = [ +fx.start_s - x.win_start, +fx.end_s - x.win_start ];
+  else if (x.guess_start != null) S.sel = [x.guess_start, x.guess_end];
+  else S.sel = null;
+  $("main").innerHTML = `
+    <div class="meta"><span><b>${i + 1}</b> / ${S.items.length}</span><span>${esc(x.call_folder)}</span>
+      <span>call <b>${esc(x.sid8)}</b>, turn ${x.turn_idx}</span><span>${esc(x.utt_id)}</span>
+      <span>window ${x.win_start.toFixed(1)}–${x.win_end.toFixed(1)} s of the recording</span></div>
+    <div class="target">${esc(x.log_text)}</div>
+    <div class="small">What production ASR logged for the farmer. Find where the farmer says this in the audio below.</div>
+    <div class="ctx">${x.context.map(c => `<div class="${c.speaker}${c.this ? " this" : ""}"><span class="who">${c.speaker}</span><span>${esc(c.text)}</span></div>`).join("")}</div>
+    <div class="wavebox"><canvas id="cv"></canvas><div class="axis"><span>0 s</span>
+      <span><span class="key" style="background:var(--accent)"></span>farmer &nbsp;<span class="key" style="background:var(--line)"></span>bot &nbsp;(strip: where the diarization model heard each speaker)</span>
+      <span id="dur"></span></div></div>
+    <div class="row">
+      <button class="b" id="pw">Play window<kbd>W</kbd></button>
+      <button class="b" id="ps">Play selection<kbd>Space</kbd></button>
+      <button class="b" id="st">Stop<kbd>Esc</kbd></button>
+      <span class="sel" id="seltxt"></span>
+    </div>
+    <div class="small" style="margin-top:6px">Drag on the waveform to select the farmer's speech, or click to play from that point. Adjust edges with <kbd>[</kbd><kbd>]</kbd> (start) and <kbd>,</kbd><kbd>.</kbd> (end), 0.1 s steps.</div>
+    ${x.guess_start != null ? `<div class="guess">Pre-selected: the best automatic guess, not confirmed (${esc(x.guess_note)}). ASR on it heard: <b>${esc(x.guess_asr)}</b></div>` : ""}
+    ${!(x.farmer_spans || []).length ? `<div class="guess">The diarization model heard no farmer speech in this window. Listen for it; if there's none, mark "Not in recording".</div>` : ""}
+    <textarea id="note" placeholder="Note (optional): e.g. farmer speaks over the bot, only part of the sentence, different words…">${esc(fx?.note || "")}</textarea>
+    <div class="row">
+      <button class="b primary" data-d="farmer">Save: farmer speech is the selection<kbd>Enter</kbd></button>
+      <button class="b" data-d="not_in_recording">Not in recording<kbd>N</kbd></button>
+      <button class="b" data-d="bot_only">Bot only / bot echo<kbd>B</kbd></button>
+      <button class="b" data-d="unsure">Unsure<kbd>U</kbd></button>
+    </div>
+    <div class="saved" id="saved">${fx ? "Saved earlier: " + LABEL[fx.decision] + (fx.decision === "farmer" ? ` (${(+fx.start_s).toFixed(2)}–${(+fx.end_s).toFixed(2)} s in the recording)` : "") : ""}</div>
+    <div class="help"><ul>
+      <li><b>Farmer speech is the selection</b>: select only the farmer's words. Include bot speech underneath if it overlaps; the clip will be flagged.</li>
+      <li><b>Not in recording</b>: you can't hear the farmer saying this anywhere in the window (silence, or only the bot).</li>
+      <li><b>Bot only / bot echo</b>: what was logged as the farmer is actually the bot's voice.</li>
+      <li><b>Unsure</b>: you can't tell; add a note. <kbd>←</kbd><kbd>→</kbd> move between items without saving.</li>
+    </ul></div>`;
+  $("pw").onclick = () => play(0); $("ps").onclick = playSel; $("st").onclick = stop;
+  document.querySelectorAll("[data-d]").forEach(b => b.onclick = () => decide(b.dataset.d));
+  renderList();
+  const cur = $("list").querySelector(".cur"); cur?.scrollIntoView({ block: "nearest" });
+  await loadAudio(x);
+}
+
+async function loadAudio(x) {
+  S.ctx = S.ctx || new AudioContext();
+  const data = await (await fetch(x.audio)).arrayBuffer();
+  S.buf = await S.ctx.decodeAudioData(data);
+  const ch = S.buf.getChannelData(0), W = 1200, step = Math.ceil(ch.length / W);
+  S.peaks = new Float32Array(W);
+  for (let i = 0; i < W; i++) { let m = 0; for (let j = i * step; j < Math.min(ch.length, (i + 1) * step); j++) m = Math.max(m, Math.abs(ch[j])); S.peaks[i] = m; }
+  const mx = Math.max(...S.peaks, 1e-6); S.peaks = S.peaks.map(v => v / mx);
+  $("dur").textContent = S.buf.duration.toFixed(1) + " s";
+  setupCanvas(); draw();
+}
+
+function setupCanvas() {
+  const cv = $("cv"), px = t => t * cv.clientWidth / S.buf.duration, tm = e => {
+    const r = cv.getBoundingClientRect(); return Math.max(0, Math.min(S.buf.duration, (e.clientX - r.left) / r.width * S.buf.duration)); };
+  cv.onmousedown = e => { S.drag = { t0: tm(e), moved: false }; };
+  window.onmousemove = e => { if (!S.drag) return; const t = tm(e);
+    if (Math.abs(px(t) - px(S.drag.t0)) > 3) { S.drag.moved = true; S.sel = [Math.min(S.drag.t0, t), Math.max(S.drag.t0, t)]; draw(); } };
+  window.onmouseup = e => { if (!S.drag) return; const d = S.drag; S.drag = null; if (!d.moved) play(d.t0); else draw(); };
+}
+
+function draw(playhead) {
+  const cv = $("cv"); if (!cv || !S.peaks) return;
+  const dpr = devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+  const x = S.items[S.i], X = t => t / S.buf.duration * w;
+  if (x.guess_start != null) { g.fillStyle = col("--guess"); g.fillRect(X(x.guess_start), 0, X(x.guess_end) - X(x.guess_start), h); }
+  if (S.sel) { g.fillStyle = col("--sel"); g.fillRect(X(S.sel[0]), 0, X(S.sel[1]) - X(S.sel[0]), h);
+    g.fillStyle = col("--accent"); g.fillRect(X(S.sel[0]) - 1, 0, 2, h); g.fillRect(X(S.sel[1]) - 1, 0, 2, h); }
+  // diarization strip along the bottom: who the model heard speaking when
+  const strip = 10, wh = h - strip - 2;
+  g.fillStyle = col("--line"); (x.bot_spans || []).forEach(([a, b]) => g.fillRect(X(a), h - strip, X(b) - X(a), strip));
+  g.fillStyle = col("--accent"); (x.farmer_spans || []).forEach(([a, b]) => g.fillRect(X(a), h - strip, X(b) - X(a), strip));
+  g.fillStyle = col("--wave");
+  const n = S.peaks.length;
+  for (let i = 0; i < n; i++) { const v = S.peaks[i] * (wh / 2 - 4); g.fillRect(i / n * w, wh / 2 - v, Math.max(1, w / n), 2 * v || 1); }
+  g.fillStyle = col("--line");
+  for (let t = 5; t < S.buf.duration; t += 5) g.fillRect(X(t), h - 6, 1, 6);
+  if (playhead != null) { g.fillStyle = col("--ink"); g.fillRect(X(playhead) - 1, 0, 2, h); }
+  $("seltxt").textContent = S.sel ? `Selection ${fmt(S.sel[0])} – ${fmt(S.sel[1])}  (${(S.sel[1] - S.sel[0]).toFixed(2)} s)` : "No selection";
+}
+
+function play(from, dur) {
+  stop(); if (!S.buf) return;
+  S.ctx.resume();
+  S.src = S.ctx.createBufferSource(); S.src.buffer = S.buf; S.src.connect(S.ctx.destination);
+  S.src.start(0, from, dur); S.playStart = S.ctx.currentTime; S.playFrom = from;
+  const end = dur ? from + dur : S.buf.duration;
+  const tick = () => { const t = S.playFrom + S.ctx.currentTime - S.playStart; if (t >= end || !S.src) { draw(); return; } draw(t); S.raf = requestAnimationFrame(tick); };
+  S.src.onended = () => { S.src = null; };
+  tick();
+}
+function playSel() { if (S.sel) play(S.sel[0], S.sel[1] - S.sel[0]); }
+function stop() { if (S.src) { try { S.src.stop(); } catch (e) {} S.src = null; } cancelAnimationFrame(S.raf); }
+
+async function decide(d) {
+  const x = S.items[S.i];
+  if (d === "farmer" && !S.sel) { flash("Select the farmer's speech on the waveform first.", true); return; }
+  const body = { utt_id: x.utt_id, decision: d, win_start: x.win_start, note: $("note").value.trim(),
+                 reviewer: $("reviewer").value.trim(), saved_at: new Date().toISOString(),
+                 start_s: d === "farmer" ? +(x.win_start + S.sel[0]).toFixed(3) : "",
+                 end_s: d === "farmer" ? +(x.win_start + S.sel[1]).toFixed(3) : "" };
+  const r = await fetch("/api/fix", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) { flash("Not saved: " + (j.error || r.status), true); return; }
+  S.fixes[x.utt_id] = body;
+  const next = S.items.findIndex((y, k) => k > S.i && !S.fixes[y.utt_id]);
+  if (next >= 0) open(next); else { renderList(); flash("Saved. No undecided items after this one."); }
+}
+function flash(msg, err) { const el = $("saved"); el.textContent = msg; el.className = "saved" + (err ? " err" : ""); }
+
+function nudge(k, dt) { if (!S.sel) return; S.sel[k] = Math.max(0, Math.min(S.buf.duration, S.sel[k] + dt));
+  if (S.sel[0] > S.sel[1]) S.sel.reverse(); draw(); }
+
+document.addEventListener("keydown", e => {
+  if (e.target.matches("textarea, input, select")) { if (e.key === "Escape") e.target.blur(); return; }
+  const k = e.key;
+  // stop a focused button from also reacting to Enter/Space
+  if (" Enter".includes(k) || "wWnNbBuU[],.".includes(k) || k.startsWith("Arrow") || k === "Escape") e.preventDefault();
+  if (k === " ") playSel();
+  else if (k === "Escape") stop();
+  else if (k === "w" || k === "W") play(0);
+  else if (k === "Enter") decide("farmer");
+  else if (k === "n" || k === "N") decide("not_in_recording");
+  else if (k === "b" || k === "B") decide("bot_only");
+  else if (k === "u" || k === "U") decide("unsure");
+  else if (k === "[") nudge(0, -0.1); else if (k === "]") nudge(0, 0.1);
+  else if (k === ",") nudge(1, -0.1); else if (k === ".") nudge(1, 0.1);
+  else if (k === "ArrowRight") open(Math.min(S.items.length - 1, S.i + 1));
+  else if (k === "ArrowLeft") open(Math.max(0, S.i - 1));
+});
+window.onresize = () => draw();
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# ---- Data: never commit (see README "Data policy") ----
+raw/
+work/
+audio/
+testset_*/
+utterances.csv
+manifest*.jsonl
+transcript_audio_mapping.csv
+
+# any audio, sheets, tables or manifests, wherever they are
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.xlsx
+*.xls
+*.csv
+*.tsv
+*.jsonl
+*.json
+*.txt
+!requirements.txt
+
+# secrets
+.env
+.env.*
+!.env.example
+*cookies*
+
+# ---- Python / tooling ----
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+*.log
